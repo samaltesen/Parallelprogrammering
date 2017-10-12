@@ -73,7 +73,7 @@ class Tile extends JPanel {
     private boolean barriertop = false;
     private boolean barrieractive = false;
     private boolean barrieremph = false;
-
+    
     private int staintx = 0;
     private int stainty = 0;
     private int staintd = 0;

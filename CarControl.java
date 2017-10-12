@@ -196,7 +196,7 @@ public class CarControl implements CarControlI{
 
     public void removeCar(int no) { 
         cd.println("Remove Car not implemented in this version");
-        //nY COMMENTAR
+        //nY COMMENTAR//nyere kommentar!
     }
 
     public void restoreCar(int no) { 
