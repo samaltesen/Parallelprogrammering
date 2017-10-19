@@ -6,6 +6,8 @@
 
 
 import java.awt.Color;
+import java.util.LinkedList;
+import java.util.Queue;
 
 class Gate {
 
@@ -37,6 +39,7 @@ class Gate {
 
 class Car extends Thread {
 
+	Alley alley = new Alley();
     int basespeed = 100;             // Rather: degree of slowness
     int variation =  0;             // Percentage of base speed
 
@@ -219,11 +222,51 @@ public class CarControl implements CarControlI{
 }
 
 class Alley{
+	boolean  direction;
+	Semaphore simpleSemaphore = new Semaphore(1);
+	Queue<Integer> bottom = new LinkedList<Integer>();
+	Queue<Integer> top = new LinkedList<Integer>();
+	public void enter(int no) {
+	
+		try{
+			s
+			simpleSemaphore.P();
+			}
+		catch(InterruptedException e) {}
+/*
+		try{
+			simpleSemaphore.P(); 
+			if(direction == true && !top.isEmpty()) {
+				empty(top);
+				direction = false;
+			}
+			else if(!bottom.isEmpty()){
+				empty(bottom);
+				direction = true;
+			}
+			
+			
+		}
+		catch (InterruptedException e) {
+			if(no > 5 && no != 0) {
+				top.add(no);
+			}
+			else {
+				bottom.add(no);
+			}
+			
+				
+		}
+*/		
 
-	   public void enter(int no) {}
-
-	   public void leave(int no) {}
 	}
+			
+	public void leave(int no) {}
+	public void empty(Queue<Integer> que) {
+		
+	}
+	
+}
 
 
 
