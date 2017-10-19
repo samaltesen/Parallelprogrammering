@@ -38,7 +38,7 @@ class Gate {
 class Car extends Thread {
 
     int basespeed = 100;             // Rather: degree of slowness
-    int variation =  50;             // Percentage of base speed
+    int variation =  0;             // Percentage of base speed
 
     CarDisplayI cd;                  // GUI part
 
@@ -167,6 +167,7 @@ public class CarControl implements CarControlI{
 
    public void startCar(int no) {
         gate[no].open();
+        setSpeed(no, 20);
     }
 
     public void stopCar(int no) {
