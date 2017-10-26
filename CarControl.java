@@ -38,7 +38,7 @@ class Gate {
 }
 
 class Car extends Thread {
-
+	Field playGround = Field.getInstance();
 	Alley alley = new Alley();
     int basespeed = 100;             // Rather: degree of slowness
     int variation =  0;             // Percentage of base speed
@@ -120,7 +120,6 @@ class Car extends Thread {
             speed = chooseSpeed();
             curpos = startpos;
             cd.mark(curpos,col,no);
-
             while (true) { 
                 sleep(speed());
   
@@ -128,17 +127,17 @@ class Car extends Thread {
                     mygate.pass(); 
                     speed = chooseSpeed();
                 }
-                	
                 newpos = nextPos(curpos);
-                
+                playGround.checkNewPos(newpos.row,newpos.col);
                 //  Move to new position 
                 cd.clear(curpos);
                 cd.mark(curpos,newpos,col,no);
                 sleep(speed());
                 cd.clear(curpos,newpos);
                 cd.mark(newpos,col,no);
-
+                playGround.releaseOldPos(curpos.row, curpos.col);
                 curpos = newpos;
+                
             }
 
         } catch (Exception e) {
@@ -229,7 +228,7 @@ class Alley{
 	public void enter(int no) {
 	
 		try{
-			s
+			
 			simpleSemaphore.P();
 			}
 		catch(InterruptedException e) {}
@@ -264,6 +263,38 @@ class Alley{
 	public void leave(int no) {}
 	public void empty(Queue<Integer> que) {
 		
+	}
+	
+}
+class Field{
+	private static Field instance = null;
+	Semaphore[][] fields;
+	protected Field(int row,int col) {
+		fields = new Semaphore[row][col];
+		for(int i = 0 ; i < row ; i++) {
+			for(int j = 0 ; j < col ; j++) {
+				fields[i][j] = new Semaphore(1);
+			}			
+		}
+		
+	}
+	
+	public static Field getInstance() {
+		if (instance == null) {
+			instance = new Field(11,12);
+		}
+		return instance;
+	}
+	
+	public void checkNewPos(int row,int col) {
+		try {
+			fields[row][col].P();
+		} catch (InterruptedException e) {
+			e.printStackTrace();
+		  }	
+	}
+	public void releaseOldPos(int row,int col) {
+		fields[row][col].V();
 	}
 	
 }
