@@ -324,12 +324,12 @@ class Field{
 	
 	public void checkNewPos(int rowNew,int colNew, int colOld,int no) {
             //Check if we are about to enter alley
-            if((colNew == 0 && rowNew == 1 && colOld != 0) || ( colNew == 0 && rowNew == 2 && colOld != 0) || ( colNew == 0 && rowNew == 11 && colOld != 0) || ( colNew == 0 && rowNew == 10)){
+            if(/*(colNew == 0 && rowNew == 1 && colOld != 0) ||*/ ( colNew == 0 && rowNew == 2 && colOld != 0) || ( colNew == 0 && rowNew == 11 && colOld != 0) || ( colNew == 0 && rowNew == 10) || (no == 3 && colNew == 3 && colOld == 4 && rowNew == 1) || (no == 4 && colNew == 3 && colOld == 4 && rowNew == 1) ){
                 alley.enter(no);
                 
             }
             //check if the cars has left the alley
-            if((colNew == 1) && (colOld == 0)){
+            if(((colNew == 1) && (colOld == 0) && (no==1||no==2||no==3||no==4))||((no == 5||no==6||no==7||no==8)&& colNew == 2 && rowNew == 0)){
                 alley.leave(no);
                 
             }
