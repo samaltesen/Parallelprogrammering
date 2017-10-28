@@ -38,8 +38,7 @@ class Gate {
 }
 
 class Car extends Thread {
-	Field playGround = Field.getInstance();
-	Alley alley = new Alley();
+    Field playGround = Field.getInstance();
     int basespeed = 100;             // Rather: degree of slowness
     int variation =  0;             // Percentage of base speed
 
@@ -128,7 +127,7 @@ class Car extends Thread {
                     speed = chooseSpeed();
                 }
                 newpos = nextPos(curpos);
-                playGround.checkNewPos(newpos.row,newpos.col);
+                playGround.checkNewPos(newpos.row,newpos.col,curpos.col,no);
                 //  Move to new position 
                 cd.clear(curpos);
                 cd.mark(curpos,newpos,col,no);
@@ -221,52 +220,89 @@ public class CarControl implements CarControlI{
 }
 
 class Alley{
-	boolean  direction;
-	Semaphore simpleSemaphore = new Semaphore(1);
-	Queue<Integer> bottom = new LinkedList<Integer>();
-	Queue<Integer> top = new LinkedList<Integer>();
+    //Passing the blaton
+       private Semaphore enter = new Semaphore(1);
+       private Semaphore up = new Semaphore(0);
+       private Semaphore down = new Semaphore(0);
+       private int delayedDown = 0;
+       private int delayedUp = 0;
+       private int nrUp = 0;
+       private int nrDown = 0;
 	public void enter(int no) {
 	
-		try{
-			
-			simpleSemaphore.P();
-			}
-		catch(InterruptedException e) {}
-/*
-		try{
-			simpleSemaphore.P(); 
-			if(direction == true && !top.isEmpty()) {
-				empty(top);
-				direction = false;
-			}
-			else if(!bottom.isEmpty()){
-				empty(bottom);
-				direction = true;
-			}
-			
-			
-		}
-		catch (InterruptedException e) {
-			if(no > 5 && no != 0) {
-				top.add(no);
-			}
-			else {
-				bottom.add(no);
-			}
-			
-				
-		}
-*/		
+            try {
+                if ((no==1) || (no==2) || (no == 3) || (no == 4) ){
+                    enter.P();
+                    if(nrUp > 0){
+                        delayedDown++;
+                        enter.V();
+                        down.P();
+                    }
+                    nrDown++;
+                    if(delayedDown > 0){
+                        delayedDown--;
+                        down.V();
+                     }
+                    else{
+                        enter.V();
+                    }
+                }
+                else{
+                    enter.P();
+                    if(nrDown > 0){
+                        delayedUp++;
+                        enter.V();
+                        up.P();
+                    }
+                    nrUp++;
+                    if(delayedUp > 0){
+                        delayedUp--;
+                        up.V();
+                     }
+                    else{
+                        enter.V();
+                    }
+                    
+                }
+             }
+             catch(InterruptedException e){}
+                
+        }
+            	
+	public void leave(int no) {
+            try{
+                if ((no==1) || (no==2) || (no == 3) || (no == 4)){
+                    enter.P();
+                    nrDown--;
+                    if(nrDown == 0 && delayedUp > 0){
+                        delayedUp--;
+                        up.V();
+                    }
+                    else{
+                        enter.V();
+                    }              
+                }
+                else{
+                    enter.P();
+                    nrUp--;
+                    if(nrUp == 0 && delayedDown > 0){
+                        delayedDown--;
+                        down.V();
+                    }
+                    else{
+                        enter.V();
+                    }              
+                
+                }   
+            }
+            catch(InterruptedException e){      
+            }
+        
+	}
+}	
 
-	}
-			
-	public void leave(int no) {}
-	public void empty(Queue<Integer> que) {
-		
-	}
-	
-}
 class Field{
+        private Alley alley = new Alley();
 	private static Field instance = null;
 	Semaphore[][] fields;
 	protected Field(int row,int col) {
@@ -278,7 +314,7 @@ class Field{
 		}
 		
 	}
-	
+	//singleton design pattern, share the field object across the multiple instances of cars.
 	public static Field getInstance() {
 		if (instance == null) {
 			instance = new Field(11,12);
@@ -286,16 +322,28 @@ class Field{
 		return instance;
 	}
 	
-	public void checkNewPos(int row,int col) {
+	public void checkNewPos(int rowNew,int colNew, int colOld,int no) {
+            //Check if we are about to enter alley
+            if((colNew == 0 && rowNew == 1 && colOld != 0) || ( colNew == 0 && rowNew == 2 && colOld != 0) || ( colNew == 0 && rowNew == 11 && colOld != 0) || ( colNew == 0 && rowNew == 10)){
+                alley.enter(no);
+                
+            }
+            //check if the cars has left the alley
+            if((colNew == 1) && (colOld == 0)){
+                alley.leave(no);
+                
+            }
+            //if none of the above, then check if the next field on the playground is free
 		try {
-			fields[row][col].P();
+			fields[rowNew][colNew].P();
 		} catch (InterruptedException e) {
 			e.printStackTrace();
-		  }	
+		  }
 	}
-	public void releaseOldPos(int row,int col) {
+            //Release the old field on the playground
+            public void releaseOldPos(int row,int col) {
 		fields[row][col].V();
-	}
+            }
 	
 }
 
