@@ -149,7 +149,7 @@ class Car extends Thread {
 }
 
 public class CarControl implements CarControlI{
-
+	Barrier barriere = Barrier.getInstance();
     CarDisplayI cd;           // Reference to GUI
     Car[]  car;               // Cars
     Gate[] gate;              // Gates
@@ -176,11 +176,13 @@ public class CarControl implements CarControlI{
     }
 
     public void barrierOn() { 
-        cd.println("Barrier On not implemented in this version");
+    	barriere.on();
+       // cd.println("Barrier On not implemented in this version");
     }
 
-    public void barrierOff() { 
-        cd.println("Barrier Off not implemented in this version");
+    public void barrierOff() {
+    	barriere.off();
+        //cd.println("Barrier Off not implemented in this version");
     }
 
     public void barrierShutDown() { 
@@ -299,10 +301,66 @@ class Alley{
             }
         
 	}
-}	
+}
+
+class Barrier {
+	   private static Barrier instance = null;
+	   private  boolean barriere = false;
+	   private int carsWaiting = 0;
+	   private Semaphore[] spBarrier = new Semaphore[9];
+	   protected Barrier(){
+	   for(int i = 0 ; i < 9 ; i++) {
+			spBarrier[i] = new Semaphore(0);
+		}		
+	   }
+	   public void sync(int no) { 
+		   if(barriere) {
+			   carsWaiting++; 
+		   	 if(carsWaiting == 9) {
+				 for(int i = 0 ; i < 9 ; i++) {
+					 spBarrier[i].V();
+				 }
+			 } else {
+				 try {
+					 
+					 spBarrier[no].P();
+				   
+				 }
+				 catch(InterruptedException e) {
+					 
+				 }
+			 }
+		   }
+		   else {
+			   spBarrier[no].V();
+			   
+		   }
+		   
+	   }  // Wait for others to arrive (if barrier active)
+
+	   public void on() { 
+		   barriere = true;
+		   
+	   }    // Activate barrier
+
+	   public void off() { 
+		   barriere = false;
+		   for(int i = 0 ; i < 9 ; i++) {
+				spBarrier[i].V();
+			}	
+	   }   // Deactivate barrier 
+
+	   public static Barrier getInstance() {
+		   if (instance == null) {
+			   instance =  new Barrier();
+		   }
+		   return instance;
+	   }
+	}
 
 class Field{
-        private Alley alley = new Alley();
+	private  Barrier barrier = Barrier.getInstance();
+    private Alley alley = new Alley();
 	private static Field instance = null;
 	Semaphore[][] fields;
 	protected Field(int row,int col) {
@@ -332,6 +390,10 @@ class Field{
             if(((colNew == 1) && (colOld == 0) && (no==1||no==2||no==3||no==4))||((no == 5||no==6||no==7||no==8)&& colNew == 2 && rowNew == 0)){
                 alley.leave(no);
                 
+            }
+            if((no<5 && rowNew == 5 && colNew > 2) || (no > 4 && rowNew == 6 && colNew > 2)){
+            	barrier.sync(no);
+            	
             }
             //if none of the above, then check if the next field on the playground is free
 		try {
