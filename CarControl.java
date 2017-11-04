@@ -1,3 +1,4 @@
+
 //Prototype implementation of Car Control
 //Mandatory assignment
 //Course 02158 Concurrent Programming, DTU, Fall 2017
@@ -306,50 +307,83 @@ class Alley{
 class Barrier {
 	   private static Barrier instance = null;
 	   private  boolean barriere = false;
+           private boolean firstTime = true;
 	   private int carsWaiting = 0;
-	   private Semaphore[] spBarrier = new Semaphore[9];
-	   protected Barrier(){
-	   for(int i = 0 ; i < 9 ; i++) {
-			spBarrier[i] = new Semaphore(0);
-		}		
-	   }
+	   private Semaphore sp1 = new Semaphore(0);
+           private Semaphore sp2 = new Semaphore(1);
+           private Semaphore mutex = new Semaphore(1);
+	   protected Barrier(){}
+           //Reusable barriers the little book of semaphores
 	   public void sync(int no) { 
 		   if(barriere) {
+                   try{    
+                       mutex.P();
 			   carsWaiting++; 
-		   	 if(carsWaiting == 9) {
-				 for(int i = 0 ; i < 9 ; i++) {
-					 spBarrier[i].V();
-				 }
-			 } else {
-				 try {
-					 
-					 spBarrier[no].P();
-				   
-				 }
-				 catch(InterruptedException e) {
-					 
-				 }
-			 }
-		   }
-		   else {
-			   spBarrier[no].V();
-			   
-		   }
-		   
+		   	 if(carsWaiting == 9){
+				sp2.P();
+                                sp1.V();
+                        }
+                        mutex.V();
+                        sp1.P();
+                        sp1.V();
+                        
+                    mutex.P();
+                        carsWaiting--;
+                        if(carsWaiting == 0){
+                            sp1.P();
+                            sp2.V();
+                        }
+                    mutex.V();
+                    sp2.P();
+                    sp2.V();
+                  }
+                   catch(InterruptedException e){}
+                   }      
 	   }  // Wait for others to arrive (if barrier active)
 
+           public boolean getBarriere(){
+               return barriere;
+           }
+           
 	   public void on() { 
+            try{ 
+               mutex.P();
 		   barriere = true;
-		   
+                   firstTime = true;
+		mutex.V();
+            }
+            catch(InterruptedException e){}
 	   }    // Activate barrier
 
-	   public void off() { 
-		   barriere = false;
-		   for(int i = 0 ; i < 9 ; i++) {
-				spBarrier[i].V();
-			}	
-	   }   // Deactivate barrier 
-
+    public void off() {
+        try{    
+             mutex.P();
+                //Why this?
+                 carsWaiting++;
+                 barriere = false;
+		 if(carsWaiting > 0 && firstTime){
+                    sp2.P();
+                    sp1.V();
+                    firstTime = false;
+                 }
+            mutex.V();
+            sp1.P();
+            sp1.V();
+                        
+            mutex.P();
+            carsWaiting--;
+            if(carsWaiting == 0){
+                sp1.P();
+                sp2.V();
+            }
+            mutex.V();
+            sp2.P();
+            sp2.V();     
+        }
+        catch(InterruptedException e){}
+    }   
+    
+    
 	   public static Barrier getInstance() {
 		   if (instance == null) {
 			   instance =  new Barrier();
@@ -391,7 +425,7 @@ class Field{
                 alley.leave(no);
                 
             }
-            if((no<5 && rowNew == 5 && colNew > 2) || (no > 4 && rowNew == 6 && colNew > 2)){
+            if((no<5 && rowNew == 5 && colNew > 2 && barrier.getBarriere()) || (no > 4 && rowNew == 6 && colNew > 2 && barrier.getBarriere())){
             	barrier.sync(no);
             	
             }
