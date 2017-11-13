@@ -7,8 +7,6 @@
 
 
 import java.awt.Color;
-import java.util.LinkedList;
-import java.util.Queue;
 
 class Gate {
 
@@ -223,164 +221,96 @@ public class CarControl implements CarControlI{
 }
 
 class Alley{
-    //Passing the blaton
-       private Semaphore enter = new Semaphore(1);
-       private Semaphore up = new Semaphore(0);
-       private Semaphore down = new Semaphore(0);
-       private int delayedDown = 0;
-       private int delayedUp = 0;
        private int nrUp = 0;
        private int nrDown = 0;
-	public void enter(int no) {
-	
-            try {
-                if ((no==1) || (no==2) || (no == 3) || (no == 4) ){
-                    enter.P();
-                    if(nrUp > 0){
-                        delayedDown++;
-                        enter.V();
-                        down.P();
-                    }
-                    nrDown++;
-                    if(delayedDown > 0){
-                        delayedDown--;
-                        down.V();
-                     }
-                    else{
-                        enter.V();
-                    }
-                }
-                else{
-                    enter.P();
-                    if(nrDown > 0){
-                        delayedUp++;
-                        enter.V();
-                        up.P();
-                    }
-                    nrUp++;
-                    if(delayedUp > 0){
-                        delayedUp--;
-                        up.V();
-                     }
-                    else{
-                        enter.V();
-                    }
-                    
-                }
-             }
-             catch(InterruptedException e){}
+       private synchronized void startDown(){
+           while(nrUp > 0){
+           try{
+               wait();
+           }
+           catch(InterruptedException e){}
+           }
+           nrDown++; 
+       }
+       private synchronized void endDown(){
+       nrDown--;
+       if (nrDown == 0){
+           notify();
+       }
+       }
+       private synchronized void startUp(){
+           while(nrDown > 0){
+           try{
+               wait();
+           }
+           catch(InterruptedException e){}
+           }
+           nrUp++; 
+       }
+       private synchronized void endUp(){
+       nrUp--;
+       if (nrUp == 0){
+           notify();
+       }
+       }
+	public  void enter(int no) {
+
+             if(no < 5){
+                 startDown();
+            }
                 
-        }
-            	
+            else{
+                 startUp();
+            }
+        }   	
 	public void leave(int no) {
-            try{
-                if ((no==1) || (no==2) || (no == 3) || (no == 4)){
-                    enter.P();
-                    nrDown--;
-                    if(nrDown == 0 && delayedUp > 0){
-                        delayedUp--;
-                        up.V();
-                    }
-                    else{
-                        enter.V();
-                    }              
+                if (no < 5){
+                    endDown();
                 }
                 else{
-                    enter.P();
-                    nrUp--;
-                    if(nrUp == 0 && delayedDown > 0){
-                        delayedDown--;
-                        down.V();
-                    }
-                    else{
-                        enter.V();
-                    }              
+                    endUp();
+                }            
                 
-                }   
-            }
-            catch(InterruptedException e){      
-            }
-        
-	}
+         }   
 }
 
 class Barrier {
 	   private static Barrier instance = null;
 	   private  boolean barriere = false;
-           private boolean firstTime = true;
 	   private int carsWaiting = 0;
-	   private Semaphore sp1 = new Semaphore(0);
-           private Semaphore sp2 = new Semaphore(1);
-           private Semaphore mutex = new Semaphore(1);
 	   protected Barrier(){}
-           //Reusable barriers the little book of semaphores
-	   public void sync(int no) { 
-		   if(barriere) {
-                   try{    
-                       mutex.P();
-			   carsWaiting++; 
-		   	 if(carsWaiting == 9){
-				sp2.P();
-                                sp1.V();
-                        }
-                        mutex.V();
-                        sp1.P();
-                        sp1.V();
-                        
-                    mutex.P();
-                        carsWaiting--;
-                        if(carsWaiting == 0){
-                            sp1.P();
-                            sp2.V();
-                        }
-                    mutex.V();
-                    sp2.P();
-                    sp2.V();
-                  }
-                   catch(InterruptedException e){}
-                   }      
-	   }  // Wait for others to arrive (if barrier active)
+	   public synchronized void sync(){
+		if(barriere) {
+                    carsWaiting++;
+                    if(carsWaiting == 9){
+                        carsWaiting = 0;
+                        notifyAll();
+                    }
+                    else{
+                            try{
+                                wait();
+                            }
+                            catch(InterruptedException e){}
+                       }
+                }
+	   }
 
            public boolean getBarriere(){
                return barriere;
            }
            
-	   public void on() { 
-            try{ 
-               mutex.P();
+	   public synchronized void on() {       
+               
 		   barriere = true;
-                   firstTime = true;
-		mutex.V();
-            }
-            catch(InterruptedException e){}
-	   }    // Activate barrier
+            
+           }
 
-    public void off() {
-        try{    
-             mutex.P();
-                //Why this?
-                 carsWaiting++;
-                 barriere = false;
-		 if(carsWaiting > 0 && firstTime){
-                    sp2.P();
-                    sp1.V();
-                    firstTime = false;
-                 }
-            mutex.V();
-            sp1.P();
-            sp1.V();
-                        
-            mutex.P();
-            carsWaiting--;
-            if(carsWaiting == 0){
-                sp1.P();
-                sp2.V();
-            }
-            mutex.V();
-            sp2.P();
-            sp2.V();     
+    public synchronized void off() {
+        barriere = false;
+        if(carsWaiting > 0){
+            carsWaiting = 0;
+            notifyAll();
         }
-        catch(InterruptedException e){}
     }   
     
     
@@ -393,7 +323,7 @@ class Barrier {
 	}
 
 class Field{
-	private  Barrier barrier = Barrier.getInstance();
+    private  Barrier barrier = Barrier.getInstance();
     private Alley alley = new Alley();
 	private static Field instance = null;
 	Semaphore[][] fields;
@@ -416,17 +346,17 @@ class Field{
 	
 	public void checkNewPos(int rowNew,int colNew, int colOld,int no) {
             //Check if we are about to enter alley
-            if(/*(colNew == 0 && rowNew == 1 && colOld != 0) ||*/ ( colNew == 0 && rowNew == 2 && colOld != 0) || ( colNew == 0 && rowNew == 11 && colOld != 0) || ( colNew == 0 && rowNew == 10) || (no == 3 && colNew == 3 && colOld == 4 && rowNew == 1) || (no == 4 && colNew == 3 && colOld == 4 && rowNew == 1) ){
+            if(( colNew == 0 && rowNew == 2 && colOld != 0) || ( colNew == 0 && rowNew == 11 && colOld != 0) || ( colNew == 0 && rowNew == 10) || (no == 3 && colNew == 3 && colOld == 4 && rowNew == 1) || (no == 4 && colNew == 3 && colOld == 4 && rowNew == 1) ){
                 alley.enter(no);
                 
             }
             //check if the cars has left the alley
-            if(((colNew == 1) && (colOld == 0) && (no==1||no==2||no==3||no==4))||((no == 5||no==6||no==7||no==8)&& colNew == 2 && rowNew == 0)){
+            if(((colNew == 1) && (colOld == 0) && (no < 5)||(no > 4)&& colNew == 2 && rowNew == 0)){
                 alley.leave(no);
                 
             }
             if((no<5 && rowNew == 5 && colNew > 2 && barrier.getBarriere()) || (no > 4 && rowNew == 6 && colNew > 2 && barrier.getBarriere())){
-            	barrier.sync(no);
+            	barrier.sync();
             	
             }
             //if none of the above, then check if the next field on the playground is free
