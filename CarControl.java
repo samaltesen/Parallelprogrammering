@@ -148,7 +148,8 @@ class Car extends Thread {
 }
 
 public class CarControl implements CarControlI{
-	Barrier barriere = Barrier.getInstance();
+    Bridge bridge = Bridge.getInstance();
+    Barrier barriere = Barrier.getInstance();
     CarDisplayI cd;           // Reference to GUI
     Car[]  car;               // Cars
     Gate[] gate;              // Gates
@@ -194,7 +195,8 @@ public class CarControl implements CarControlI{
     }
 
     public void setLimit(int k) { 
-        cd.println("Setting of bridge limit not implemented in this version");
+        bridge.setLimit(k);
+        
     }
 
     public void removeCar(int no) { 
@@ -221,6 +223,7 @@ public class CarControl implements CarControlI{
 }
 
 class Alley{
+       private static Alley instance = null;
        private int nrUp = 0;
        private int nrDown = 0;
        private synchronized void startDown(){
@@ -271,7 +274,18 @@ class Alley{
                     endUp();
                 }            
                 
-         }   
+         } 
+        
+        public int getNrDown(){
+            return nrDown;
+        }
+        
+        public static Alley getInstance() {
+            if (instance == null) {
+                instance =  new Alley();
+            }
+        return instance;
+        }
 }
 
 class Barrier {
@@ -313,18 +327,64 @@ class Barrier {
         }
     }   
     
-    
-	   public static Barrier getInstance() {
-		   if (instance == null) {
-			   instance =  new Barrier();
-		   }
-		   return instance;
-	   }
-	}
+    public static Barrier getInstance() {
+         if (instance == null) {
+	instance =  new Barrier();
+        }
+        return instance;
+    }
+}
+class Bridge{
+   private Alley alley = Alley.getInstance();
+   private int limit = 6;
+   private int counter = 0;
+   private static Bridge instance = null;
+
+   public synchronized void enter(int no){
+       while(counter == limit){
+           try{
+               wait();
+           }
+           catch(InterruptedException e){
+           
+           }
+       }
+       while(limit < 5 && alley.getNrDown() > 0 && counter == limit-1 && no > 4){
+           notify();
+           try{
+               wait();
+           }
+           catch(InterruptedException e){
+           
+           }
+       }
+
+       counter++;
+
+   }
+
+   public synchronized void leave(int no){
+    counter--;
+    notify();
+   }
+
+   public void setLimit(int k){
+    limit = k;
+   
+   }
+   
+   public static Bridge getInstance(){
+       if (instance == null){
+           instance = new Bridge();
+       }
+       return instance;
+   }
+}
 
 class Field{
     private  Barrier barrier = Barrier.getInstance();
-    private Alley alley = new Alley();
+    private Alley alley = Alley.getInstance();
+    private Bridge bridge = Bridge.getInstance();
 	private static Field instance = null;
 	Semaphore[][] fields;
 	protected Field(int row,int col) {
@@ -350,14 +410,23 @@ class Field{
                 alley.enter(no);
                 
             }
-            //check if the cars has left the alley
-            if(((colNew == 1) && (colOld == 0) && (no < 5)||(no > 4)&& colNew == 2 && rowNew == 0)){
+            //check if the cars has left the alley//moved col when we implemented bridge to avoid deadlock 
+            if(((colNew == 2) && (colOld == 1) && (no < 5)||(no > 4)&& colNew == 2 && rowNew == 0)){
                 alley.leave(no);
                 
             }
+            //are we at the barriere
             if((no<5 && rowNew == 5 && colNew > 2 && barrier.getBarriere()) || (no > 4 && rowNew == 6 && colNew > 2 && barrier.getBarriere())){
             	barrier.sync();
             	
+            }
+            //are we about to enter the bridge?
+            if((rowNew == 9 && colOld == 0 && colNew == 1 && no < 5) ||(colNew == 3 && rowNew == 10)){
+                bridge.enter(no);
+            }
+            //have we left the bridge?
+            if(((rowNew == 8 || rowNew==9) && colOld == 4 && no < 5) ||(colOld== 0 && rowNew == 9 && no > 4)){
+                bridge.leave(no);
             }
             //if none of the above, then check if the next field on the playground is free
 		try {
