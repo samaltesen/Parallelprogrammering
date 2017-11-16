@@ -125,8 +125,9 @@ class Car extends Thread {
                     mygate.pass(); 
                     speed = chooseSpeed();
                 }
+ 
                 newpos = nextPos(curpos);
-                playGround.checkNewPos(newpos.row,newpos.col,curpos.col,no);
+                newpos= playGround.checkNewPos(no,cd,curpos,newpos);
                 //  Move to new position 
                 cd.clear(curpos);
                 cd.mark(curpos,newpos,col,no);
@@ -148,6 +149,7 @@ class Car extends Thread {
 }
 
 public class CarControl implements CarControlI{
+    Workshop workshop = Workshop.getInstance();
     Bridge bridge = Bridge.getInstance();
     Barrier barriere = Barrier.getInstance();
     CarDisplayI cd;           // Reference to GUI
@@ -200,14 +202,15 @@ public class CarControl implements CarControlI{
     }
 
     public void removeCar(int no) { 
-        cd.println("Remove Car not implemented in this version");
-
+       
+        workshop.MarkCarForRemoval(no);
         //nY COMMENTAR//nyere kommentar!
 
     }
 
     public void restoreCar(int no) { 
-        cd.println("Restore Car not implemented in this version");
+ 
+        workshop.MarkCarForRestoration(no);
     }
 
     /* Speed settings for testing purposes */
@@ -235,7 +238,7 @@ class Alley{
            }
            nrDown++; 
        }
-       private synchronized void endDown(){
+       public synchronized void endDown(){
        nrDown--;
        if (nrDown == 0){
            notify();
@@ -250,7 +253,7 @@ class Alley{
            }
            nrUp++; 
        }
-       private synchronized void endUp(){
+       public synchronized void endUp(){
        nrUp--;
        if (nrUp == 0){
            notify();
@@ -381,10 +384,84 @@ class Bridge{
    }
 }
 
+class Workshop{
+    private static Workshop instance = null;
+    private Alley alley = Alley.getInstance();
+    private boolean[] removalFlags =  new boolean[10];
+    private boolean[] restoreFlags =  new boolean[10];
+    //private Semaphore[] sp =  new Semaphore[10];
+    protected Workshop(){
+        for (int i = 0 ; i < 10 ; i++){
+            removalFlags[i] = false;    
+            restoreFlags[i] = false;
+        }
+    }
+    public synchronized void removeCar(int no, Pos current){
+        if(current.col == 0 ){
+            if(no<5){
+                alley.endDown();
+            }
+            else{
+                alley.endUp();
+            }
+        }
+
+        if(removalFlags[no]){
+           try{
+            wait();
+            }
+           catch(InterruptedException e){}
+        }
+
+ }
+    
+    public synchronized boolean restoreCar(int no){
+        //I have been removed but i am not the right care to be restored
+        while( removalFlags[no] && !restoreFlags[no]){
+            notify();
+            try{
+            wait();
+            }
+           catch(InterruptedException e){}
+        }
+        if( removalFlags[no] && restoreFlags[no]){
+            
+            restoreFlags[no] = false;
+            removalFlags[no] = false;
+            return true;
+        }
+        notify();
+        restoreFlags[no] = false;
+        removalFlags[no] = false;
+        return false;
+    }
+    public void MarkCarForRemoval(int no){
+        removalFlags[no] = true;
+    
+    }
+    public void MarkCarForRestoration(int no){
+        restoreFlags[no] = true;
+    
+    }
+    public boolean getRemovalFlag(int no){
+        return removalFlags[no];
+    }
+    public boolean getRestoreFlag(int no){
+        return restoreFlags[0] || restoreFlags[1] || restoreFlags[2] || restoreFlags[3] || restoreFlags[4] || restoreFlags[5] || restoreFlags[6] || restoreFlags[7] || restoreFlags[8] || restoreFlags[9] ;
+    }
+    public static Workshop getInstance(){
+        if (instance == null){
+            instance = new Workshop();
+        }
+        return instance;
+    }
+}
+
 class Field{
     private  Barrier barrier = Barrier.getInstance();
     private Alley alley = Alley.getInstance();
     private Bridge bridge = Bridge.getInstance();
+    private Workshop workshop = Workshop.getInstance();
 	private static Field instance = null;
 	Semaphore[][] fields;
 	protected Field(int row,int col) {
@@ -404,36 +481,56 @@ class Field{
 		return instance;
 	}
 	
-	public void checkNewPos(int rowNew,int colNew, int colOld,int no) {
+
+        
+       
+	public Pos checkNewPos(int no,CarDisplayI cd,Pos current,Pos newpos) {
+            //have the car been marked for removal?
+            if(workshop.getRemovalFlag(no)){
+                cd.clear(current);
+                releaseOldPos(current.row, current.col);
+                workshop.removeCar(no,current);
+
+            }
+            if(workshop.getRestoreFlag(no)){
+                if(workshop.restoreCar(no)){
+                    current =  cd.getStartPos(no);
+                   // cd.mark(current, Color.blue, no);
+                    newpos = cd.nextPos(no, current); 
+                }
+            }
+
             //Check if we are about to enter alley
-            if(( colNew == 0 && rowNew == 2 && colOld != 0) || ( colNew == 0 && rowNew == 11 && colOld != 0) || ( colNew == 0 && rowNew == 10) || (no == 3 && colNew == 3 && colOld == 4 && rowNew == 1) || (no == 4 && colNew == 3 && colOld == 4 && rowNew == 1) ){
+            if(( newpos.col == 0 && newpos.row == 2 && current.col != 0) || ( newpos.col == 0 && newpos.row == 11 && current.col != 0) || ( newpos.col == 0 && newpos.row == 10) || (no == 3 && newpos.col == 3 && current.col == 4 && newpos.row == 1) || (no == 4 && newpos.col == 3 && current.col == 4 && newpos.row == 1) ){
                 alley.enter(no);
                 
             }
             //check if the cars has left the alley//moved col when we implemented bridge to avoid deadlock 
-            if(((colNew == 2) && (colOld == 1) && (no < 5)||(no > 4)&& colNew == 2 && rowNew == 0)){
+            if(((newpos.col == 2) && (current.col == 1) && (no < 5)||(no > 4)&& newpos.col == 2 && newpos.row == 0)){
                 alley.leave(no);
                 
             }
             //are we at the barriere
-            if((no<5 && rowNew == 5 && colNew > 2 && barrier.getBarriere()) || (no > 4 && rowNew == 6 && colNew > 2 && barrier.getBarriere())){
+            if((no<5 && newpos.row == 5 && newpos.col > 2 && barrier.getBarriere()) || (no > 4 && newpos.row == 6 && newpos.col > 2 && barrier.getBarriere())){
             	barrier.sync();
             	
             }
             //are we about to enter the bridge?
-            if((rowNew == 9 && colOld == 0 && colNew == 1 && no < 5) ||(colNew == 3 && rowNew == 10)){
+            if((newpos.row == 9 && current.col == 0 && newpos.col == 1 && no < 5) ||(newpos.col == 3 && newpos.row == 10)){
                 bridge.enter(no);
             }
             //have we left the bridge?
-            if(((rowNew == 8 || rowNew==9) && colOld == 4 && no < 5) ||(colOld== 0 && rowNew == 9 && no > 4)){
+            if(((newpos.row == 8 || newpos.row==9) && current.col == 4 && no < 5) ||(current.col== 0 && newpos.row == 9 && no > 4)){
                 bridge.leave(no);
             }
             //if none of the above, then check if the next field on the playground is free
 		try {
-			fields[rowNew][colNew].P();
+			fields[newpos.row][newpos.col].P();
+  
 		} catch (InterruptedException e) {
 			e.printStackTrace();
 		  }
+         return newpos;
 	}
             //Release the old field on the playground
             public void releaseOldPos(int row,int col) {
