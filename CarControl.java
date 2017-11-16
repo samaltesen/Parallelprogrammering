@@ -405,15 +405,12 @@ class Workshop{
                 alley.endUp();
             }
         }
-
-        if(removalFlags[no]){
            try{
             wait();
             }
            catch(InterruptedException e){}
-        }
-
- }
+        
+}
     
     public synchronized boolean restoreCar(int no){
         //I have been removed but i am not the right care to be restored
@@ -431,8 +428,8 @@ class Workshop{
             return true;
         }
         notify();
-        restoreFlags[no] = false;
-        removalFlags[no] = false;
+        //restoreFlags[no] = false;
+        //removalFlags[no] = false;
         return false;
     }
     public void MarkCarForRemoval(int no){
@@ -492,6 +489,7 @@ class Field{
                 workshop.removeCar(no,current);
 
             }
+            //should we restore any cars?
             if(workshop.getRestoreFlag(no)){
                 if(workshop.restoreCar(no)){
                     current =  cd.getStartPos(no);
