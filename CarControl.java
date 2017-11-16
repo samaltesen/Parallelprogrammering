@@ -95,8 +95,9 @@ class Car extends Thread {
 
     private int speed() {
         // Slow down if requested
-        final int slowfactor = 3;  
-        return speed * (cd.isSlow(curpos)? slowfactor : 1);
+        final int slowfactor = 4;
+        return speed*slowfactor;  
+        //return speed * (cd.isSlow(curpos)? slowfactor : 1);
     }
 
     Color chooseColor() { 
@@ -188,7 +189,7 @@ public class CarControl implements CarControlI{
     }
 
     public void barrierShutDown() { 
-        cd.println("Barrier shut down not implemented in this version");
+        barriere.shutdown();
         // This sleep is for illustrating how blocking affects the GUI
         // Remove when shutdown is implemented.
         try { Thread.sleep(3000); } catch (InterruptedException e) { }
@@ -236,6 +237,7 @@ class Alley{
            }
            catch(InterruptedException e){}
            }
+           notify();
            nrDown++; 
        }
        public synchronized void endDown(){
@@ -251,6 +253,7 @@ class Alley{
            }
            catch(InterruptedException e){}
            }
+           notify();
            nrUp++; 
        }
        public synchronized void endUp(){
@@ -296,7 +299,8 @@ class Barrier {
 	   private  boolean barriere = false;
 	   private int carsWaiting = 0;
 	   protected Barrier(){}
-	   public synchronized void sync(){
+	   
+	public synchronized void sync(){
 		if(barriere) {
                     carsWaiting++;
                     if(carsWaiting == 9){
@@ -329,6 +333,19 @@ class Barrier {
             notifyAll();
         }
     }   
+    
+    public synchronized void shutdown() {
+    	
+    	while(carsWaiting != 0) {
+    		try{
+                wait();
+            }
+            catch(InterruptedException e){}
+    	}
+    	
+    	barriere = false;
+    	
+	}
     
     public static Barrier getInstance() {
          if (instance == null) {
@@ -397,7 +414,10 @@ class Workshop{
         }
     }
     public synchronized void removeCar(int no, Pos current){
-        if(current.col == 0 ){
+        if(	current.col == 0 ||
+        	((no < 5 || no > 2) && current.col < 4 && current.row == 1) || (no < 3 && current.col == 1 && current.row == 2) ||
+        	(no >= 5 && ((current.row == 1 && current.col < 3) || (current.row == 10 && current.col == 10))) 
+			 ){
             if(no<5){
                 alley.endDown();
             }
@@ -432,21 +452,21 @@ class Workshop{
         //removalFlags[no] = false;
         return false;
     }
-    public void MarkCarForRemoval(int no){
+    public synchronized void MarkCarForRemoval(int no){
         removalFlags[no] = true;
     
     }
-    public void MarkCarForRestoration(int no){
+    public synchronized void MarkCarForRestoration(int no){
         restoreFlags[no] = true;
     
     }
-    public boolean getRemovalFlag(int no){
+    public synchronized boolean getRemovalFlag(int no){
         return removalFlags[no];
     }
-    public boolean getRestoreFlag(int no){
+    public synchronized boolean getRestoreFlag(int no){
         return restoreFlags[0] || restoreFlags[1] || restoreFlags[2] || restoreFlags[3] || restoreFlags[4] || restoreFlags[5] || restoreFlags[6] || restoreFlags[7] || restoreFlags[8] || restoreFlags[9] ;
     }
-    public static Workshop getInstance(){
+    public synchronized static Workshop getInstance(){
         if (instance == null){
             instance = new Workshop();
         }
@@ -455,9 +475,8 @@ class Workshop{
 }
 
 class Field{
-    private  Barrier barrier = Barrier.getInstance();
+    private Barrier barrier = Barrier.getInstance();
     private Alley alley = Alley.getInstance();
-    private Bridge bridge = Bridge.getInstance();
     private Workshop workshop = Workshop.getInstance();
 	private static Field instance = null;
 	Semaphore[][] fields;
@@ -482,6 +501,7 @@ class Field{
         
        
 	public Pos checkNewPos(int no,CarDisplayI cd,Pos current,Pos newpos) {
+			
             //have the car been marked for removal?
             if(workshop.getRemovalFlag(no)){
                 cd.clear(current);
@@ -498,8 +518,17 @@ class Field{
                 }
             }
 
+            if((no == 6 && current.row == 10 && current.col == 2) && no == 5 && current.row == 10 && current.col == 1) {
+            	int test = 1;
+            	int test2 = test;
+            	
+            }
             //Check if we are about to enter alley
-            if(( newpos.col == 0 && newpos.row == 2 && current.col != 0) || ( newpos.col == 0 && newpos.row == 11 && current.col != 0) || ( newpos.col == 0 && newpos.row == 10) || (no == 3 && newpos.col == 3 && current.col == 4 && newpos.row == 1) || (no == 4 && newpos.col == 3 && current.col == 4 && newpos.row == 1) ){
+            if(( newpos.col == 0 && newpos.row == 2 && current.col != 0)|| 
+            	//( newpos.col == 0 && newpos.row == 11 && current.col != 0) || 
+            	( newpos.col == 0 && newpos.row == 10) || 
+            	(no == 3 && newpos.col == 3 && current.col == 4 && newpos.row == 1) || 
+            	(no == 4 && newpos.col == 3 && current.col == 4 && newpos.row == 1) ){
                 alley.enter(no);
                 
             }
@@ -513,6 +542,7 @@ class Field{
             	barrier.sync();
             	
             }
+            /*
             //are we about to enter the bridge?
             if((newpos.row == 9 && current.col == 0 && newpos.col == 1 && no < 5) ||(newpos.col == 3 && newpos.row == 10)){
                 bridge.enter(no);
@@ -521,6 +551,7 @@ class Field{
             if(((newpos.row == 8 || newpos.row==9) && current.col == 4 && no < 5) ||(current.col== 0 && newpos.row == 9 && no > 4)){
                 bridge.leave(no);
             }
+            */
             //if none of the above, then check if the next field on the playground is free
 		try {
 			fields[newpos.row][newpos.col].P();
