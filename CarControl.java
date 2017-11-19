@@ -231,41 +231,56 @@ class Alley{
        private int delayedUp = 0;
        private int nrUp = 0;
        private int nrDown = 0;
+       private int turnsDown;
+       private int turnsUp;
 	public void enter(int no) {
 	
             try {
                 if ((no==1) || (no==2) || (no == 3) || (no == 4) ){
                     enter.P();
-                    if(nrUp > 0){
-                        delayedDown++;
+                    if(turnsDown > 3 && delayedUp > 0){
                         enter.V();
-                        down.P();
                     }
-                    nrDown++;
-                    if(delayedDown > 0){
-                        delayedDown--;
-                        down.V();
-                     }
                     else{
-                        enter.V();
+                        if(nrUp > 0){
+                            delayedDown++;
+                            enter.V();
+                            down.P();
+                        }
+                        turnsDown++;
+                        nrDown++;
+                        turnsUp = 0;
+                        if(delayedDown > 0){
+                            delayedDown--;
+                            down.V();
+                        }
+                        else{
+                            enter.V();
+                        }
                     }
                 }
                 else{
                     enter.P();
-                    if(nrDown > 0){
-                        delayedUp++;
+                    if(turnsUp > 3 && delayedDown > 0){
                         enter.V();
-                        up.P();
                     }
-                    nrUp++;
-                    if(delayedUp > 0){
-                        delayedUp--;
-                        up.V();
-                     }
                     else{
-                        enter.V();
+                        if(nrDown > 0){
+                            delayedUp++;
+                            enter.V();
+                            up.P();
+                        }
+                        turnsUp++;
+                        nrUp++;
+                        turnsDown = 0;
+                        if(delayedUp > 0){
+                            delayedUp--;
+                            up.V();
+                        }
+                        else{
+                            enter.V();
+                        }
                     }
-                    
                 }
              }
              catch(InterruptedException e){}
