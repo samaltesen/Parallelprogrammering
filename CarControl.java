@@ -224,7 +224,53 @@ public class CarControl implements CarControlI{
 }
 
 class Alley{
-    //Passing the blaton
+	private Semaphore enter = new Semaphore(1);
+    private Semaphore up = new Semaphore(1);
+    private Semaphore down = new Semaphore(1);
+    
+    private int carsUp = 0;
+    private int carsDown = 0;
+    
+    public void enter(int no) throws InterruptedException {
+	    if(no < 5 && no != 0) {
+	    	down.P();
+	    	if(carsDown == 0) {
+	    		enter.P();
+	    	}
+	    	carsDown++;
+	    	down.V();
+	    } else {
+	    	up.P();
+	    	if(carsUp == 0) {
+	    		enter.P();
+	    	}
+	    	carsUp++;
+	    	up.V();
+	    	
+	    }
+	    
+    }
+    
+    public void leave(int no) throws InterruptedException {
+    	if(no < 5 && no != 0) {
+    		down.P();
+    		carsDown--;
+    		if(carsDown == 0) {
+    			enter.V();
+    		}
+    		down.V();
+    	} else {
+    		up.P();
+    		carsUp--;
+    		if(carsUp == 0) {
+    			enter.V();
+    		}
+    		up.V();
+    		
+    	}
+    }
+    /*
+	//Passing the blaton
        private Semaphore enter = new Semaphore(1);
        private Semaphore up = new Semaphore(0);
        private Semaphore down = new Semaphore(0);
@@ -232,56 +278,41 @@ class Alley{
        private int delayedUp = 0;
        private int nrUp = 0;
        private int nrDown = 0;
-       private int turnsDown;
-       private int turnsUp;
 	public void enter(int no) {
 	
             try {
                 if ((no==1) || (no==2) || (no == 3) || (no == 4) ){
                     enter.P();
-                    if(turnsDown > 3 && delayedUp > 0){
+                    if(nrUp > 0){
+                        delayedDown++;
                         enter.V();
+                        down.P();
                     }
+                    nrDown++;
+                    if(delayedDown > 0){
+                        delayedDown--;
+                        down.V();
+                     }
                     else{
-                        if(nrUp > 0){
-                            delayedDown++;
-                            enter.V();
-                            down.P();
-                        }
-                        turnsDown++;
-                        nrDown++;
-                        turnsUp = 0;
-                        if(delayedDown > 0){
-                            delayedDown--;
-                            down.V();
-                        }
-                        else{
-                            enter.V();
-                        }
+                        enter.V();
                     }
                 }
                 else{
                     enter.P();
-                    if(turnsUp > 3 && delayedDown > 0){
+                    if(nrDown > 0){
+                        delayedUp++;
+                        enter.V();
+                        up.P();
+                    }
+                    nrUp++;
+                    if(delayedUp > 0){
+                        delayedUp--;
+                        up.V();
+                     }
+                    else{
                         enter.V();
                     }
-                    else{
-                        if(nrDown > 0){
-                            delayedUp++;
-                            enter.V();
-                            up.P();
-                        }
-                        turnsUp++;
-                        nrUp++;
-                        turnsDown = 0;
-                        if(delayedUp > 0){
-                            delayedUp--;
-                            up.V();
-                        }
-                        else{
-                            enter.V();
-                        }
-                    }
+                    
                 }
              }
              catch(InterruptedException e){}
@@ -318,6 +349,7 @@ class Alley{
             }
         
 	}
+	*/
 }
 
 class Barrier {
@@ -430,7 +462,7 @@ class Field{
 		return instance;
 	}
 	
-	public void checkNewPos(int rowNew,int colNew, int colOld,int no) {
+	public void checkNewPos(int rowNew,int colNew, int colOld,int no) throws InterruptedException {
             //Check if we are about to enter alley
             if(/*(colNew == 0 && rowNew == 1 && colOld != 0) ||*/ ( colNew == 0 && rowNew == 2 && colOld != 0) || ( colNew == 0 && rowNew == 11 && colOld != 0) || ( colNew == 0 && rowNew == 10) || (no == 3 && colNew == 3 && colOld == 4 && rowNew == 1) || (no == 4 && colNew == 3 && colOld == 4 && rowNew == 1) ){
                 alley.enter(no);
