@@ -38,9 +38,10 @@ class Gate {
 
 class Car extends Thread {
     Field playGround = Field.getInstance();
+    Workshop workshop = Workshop.getInstance();
     int basespeed = 100;             // Rather: degree of slowness
     int variation =  0;             // Percentage of base speed
-
+    boolean clear = false;
     CarDisplayI cd;                  // GUI part
 
     int no;                          // Car number
@@ -114,49 +115,84 @@ class Car extends Thread {
     }
 
    public void run() {
-        try {
+        
 
             speed = chooseSpeed();
             curpos = startpos;
             cd.mark(curpos,col,no);
             while (true) { 
-                sleep(speed());
-  
-                if (atGate(curpos)) { 
-                    mygate.pass(); 
-                    speed = chooseSpeed();
+                try {
+                    sleep(speed());
+
+                    if (atGate(curpos)) { 
+                        mygate.pass(); 
+                        speed = chooseSpeed();
+                    }
+
+                    newpos = nextPos(curpos);
+                     playGround.checkNewPos(no,cd,curpos,newpos);
+                    //  Move to new position 
+                    cd.clear(curpos);
+                    try{
+                        cd.mark(curpos,newpos,col,no);
+                        sleep(speed());
+                    }
+                    catch(InterruptedException e){
+                        if(workshop.getRemovalFlag(no) && !workshop.getRestoreFlag(no)){
+                            cd.clear(curpos, newpos);
+                            clear = true;
+                        }
+                        throw e;
+                     }
+
+                    cd.clear(curpos,newpos);
+                    try{
+                    cd.mark(newpos,col,no);
+                    playGround.releaseOldPos(curpos.row, curpos.col);
+                    }
+                    catch(Exception e){
+                        if(workshop.getRemovalFlag(no) && !workshop.getRestoreFlag(no)){
+                            cd.clear(newpos);
+                            clear = true;
+                        }
+                        throw e;
+                        
+                    }
+                    curpos = newpos;
                 }
+                catch (Exception e) {
+                    if(!clear && !workshop.getRestoreFlag(no)){
+                        cd.clear(curpos);
+                    }
+                    else{
+                        clear = false;
+                    }
+                   playGround.releaseOldPos(newpos.row, newpos.col);
+                   playGround.releaseOldPos(curpos.row, curpos.col);
+                    if(workshop.getRemovalFlag(no) && !workshop.getRestoreFlag(no)){
+                        workshop.removeCar(no, curpos);
+                        curpos = cd.getStartPos(no);
+                    }
+                    workshop.removeCar(no, curpos);
+;
  
-                newpos = nextPos(curpos);
-                newpos= playGround.checkNewPos(no,cd,curpos,newpos);
-                //  Move to new position 
-                cd.clear(curpos);
-                cd.mark(curpos,newpos,col,no);
-                sleep(speed());
-                cd.clear(curpos,newpos);
-                cd.mark(newpos,col,no);
-                playGround.releaseOldPos(curpos.row, curpos.col);
-                curpos = newpos;
+                }
                 
             }
 
-        } catch (Exception e) {
-            cd.println("Exception in Car no. " + no);
-            System.err.println("Exception in Car no. " + no + ":" + e);
-            e.printStackTrace();
-        }
+        
     }
 
 }
 
 public class CarControl implements CarControlI{
     Workshop workshop = Workshop.getInstance();
-    Bridge bridge = Bridge.getInstance();
-    Barrier barriere = Barrier.getInstance();
     CarDisplayI cd;           // Reference to GUI
     Car[]  car;               // Cars
     Gate[] gate;              // Gates
+    Pos test;
 
+    
     public CarControl(CarDisplayI cd) {
         this.cd = cd;
         car  = new  Car[9];
@@ -179,39 +215,40 @@ public class CarControl implements CarControlI{
     }
 
     public void barrierOn() { 
-    	barriere.on();
+
        // cd.println("Barrier On not implemented in this version");
     }
 
     public void barrierOff() {
-    	barriere.off();
+
         //cd.println("Barrier Off not implemented in this version");
     }
 
     public void barrierShutDown() { 
-        barriere.shutdown();
+
         // This sleep is for illustrating how blocking affects the GUI
         // Remove when shutdown is implemented.
-        try { Thread.sleep(3000); } catch (InterruptedException e) { }
+        //try { Thread.sleep(3000); } catch (InterruptedException e) { }
         // Recommendation: 
         //   If not implemented call barrier.off() instead to make graphics consistent
     }
 
     public void setLimit(int k) { 
-        bridge.setLimit(k);
+ 
         
     }
 
     public void removeCar(int no) { 
        
         workshop.MarkCarForRemoval(no);
+        car[no].interrupt();
         //nY COMMENTAR//nyere kommentar!
 
     }
 
     public void restoreCar(int no) { 
- 
         workshop.MarkCarForRestoration(no);
+        car[no].interrupt();
     }
 
     /* Speed settings for testing purposes */
@@ -294,119 +331,11 @@ class Alley{
         }
 }
 
-class Barrier {
-	   private static Barrier instance = null;
-	   private  boolean barriere = false;
-	   private int carsWaiting = 0;
-	   protected Barrier(){}
-	   
-	public synchronized void sync(){
-		if(barriere) {
-                    carsWaiting++;
-                    if(carsWaiting == 9){
-                        carsWaiting = 0;
-                        notifyAll();
-                    }
-                    else{
-                            try{
-                                wait();
-                            }
-                            catch(InterruptedException e){}
-                       }
-                }
-	   }
-
-           public boolean getBarriere(){
-               return barriere;
-           }
-           
-	   public synchronized void on() {       
-               
-		   barriere = true;
-            
-           }
-
-    public synchronized void off() {
-        barriere = false;
-        if(carsWaiting > 0){
-            carsWaiting = 0;
-            notifyAll();
-        }
-    }   
-    
-    public synchronized void shutdown() {
-    	
-    	while(carsWaiting != 0) {
-    		try{
-                wait();
-            }
-            catch(InterruptedException e){}
-    	}
-    	
-    	barriere = false;
-    	
-	}
-    
-    public static Barrier getInstance() {
-         if (instance == null) {
-	instance =  new Barrier();
-        }
-        return instance;
-    }
-}
-class Bridge{
-   private Alley alley = Alley.getInstance();
-   private int limit = 6;
-   private int counter = 0;
-   private static Bridge instance = null;
-
-   public synchronized void enter(int no){
-       while(counter == limit){
-           try{
-               wait();
-           }
-           catch(InterruptedException e){
-           
-           }
-       }
-       while(limit < 5 && alley.getNrDown() > 0 && counter == limit-1 && no > 4){
-           notify();
-           try{
-               wait();
-           }
-           catch(InterruptedException e){
-           
-           }
-       }
-
-       counter++;
-
-   }
-
-   public synchronized void leave(int no){
-    counter--;
-    notify();
-   }
-
-   public void setLimit(int k){
-    limit = k;
-   
-   }
-   
-   public static Bridge getInstance(){
-       if (instance == null){
-           instance = new Bridge();
-       }
-       return instance;
-   }
-}
-
 class Workshop{
     private static Workshop instance = null;
     private Alley alley = Alley.getInstance();
     private boolean[] removalFlags =  new boolean[10];
     private boolean[] restoreFlags =  new boolean[10];
-    //private Semaphore[] sp =  new Semaphore[10];
     protected Workshop(){
         for (int i = 0 ; i < 10 ; i++){
             removalFlags[i] = false;    
@@ -425,33 +354,35 @@ class Workshop{
                 alley.endUp();
             }
         }
+        while(!restoreFlags[no]){
            try{
-            wait();
+                wait();
             }
+
            catch(InterruptedException e){}
-        
-}
-    
-    public synchronized boolean restoreCar(int no){
-        //I have been removed but i am not the right care to be restored
-        while( removalFlags[no] && !restoreFlags[no]){
-            notify();
-            try{
-            wait();
-            }
-           catch(InterruptedException e){}
-        }
-        if( removalFlags[no] && restoreFlags[no]){
-            
-            restoreFlags[no] = false;
-            removalFlags[no] = false;
-            return true;
         }
         notify();
-        //restoreFlags[no] = false;
-        //removalFlags[no] = false;
-        return false;
-    }
+        restoreFlags[no] = false;
+        removalFlags[no] = false;  
+}
+    
+//    public synchronized void restoreCar(int no){
+//        notifyAll();
+//        //I have been removed but i am not the right care to be restored
+//        while( removalFlags[no] && !restoreFlags[no]){
+//            notify();
+//            try{
+//            wait();
+//            }
+//           catch(InterruptedException e){}
+//        }
+//        
+//            
+//            restoreFlags[no] = false;
+//            removalFlags[no] = false;  
+//        
+//
+//    }
     public synchronized void MarkCarForRemoval(int no){
         removalFlags[no] = true;
     
@@ -464,7 +395,7 @@ class Workshop{
         return removalFlags[no];
     }
     public synchronized boolean getRestoreFlag(int no){
-        return restoreFlags[0] || restoreFlags[1] || restoreFlags[2] || restoreFlags[3] || restoreFlags[4] || restoreFlags[5] || restoreFlags[6] || restoreFlags[7] || restoreFlags[8] || restoreFlags[9] ;
+        return restoreFlags[no];
     }
     public synchronized static Workshop getInstance(){
         if (instance == null){
@@ -475,7 +406,6 @@ class Workshop{
 }
 
 class Field{
-    private Barrier barrier = Barrier.getInstance();
     private Alley alley = Alley.getInstance();
     private Workshop workshop = Workshop.getInstance();
 	private static Field instance = null;
@@ -500,29 +430,10 @@ class Field{
 
         
        
-	public Pos checkNewPos(int no,CarDisplayI cd,Pos current,Pos newpos) {
+	public void checkNewPos(int no,CarDisplayI cd,Pos current,Pos newpos)throws InterruptedException {
 			
-            //have the car been marked for removal?
-            if(workshop.getRemovalFlag(no)){
-                cd.clear(current);
-                releaseOldPos(current.row, current.col);
-                workshop.removeCar(no,current);
 
-            }
-            //should we restore any cars?
-            if(workshop.getRestoreFlag(no)){
-                if(workshop.restoreCar(no)){
-                    current =  cd.getStartPos(no);
-                   // cd.mark(current, Color.blue, no);
-                    newpos = cd.nextPos(no, current); 
-                }
-            }
 
-            if((no == 6 && current.row == 10 && current.col == 2) && no == 5 && current.row == 10 && current.col == 1) {
-            	int test = 1;
-            	int test2 = test;
-            	
-            }
             //Check if we are about to enter alley
             if(( newpos.col == 0 && newpos.row == 2 && current.col != 0)|| 
             	//( newpos.col == 0 && newpos.row == 11 && current.col != 0) || 
@@ -537,29 +448,14 @@ class Field{
                 alley.leave(no);
                 
             }
-            //are we at the barriere
-            if((no<5 && newpos.row == 5 && newpos.col > 2 && barrier.getBarriere()) || (no > 4 && newpos.row == 6 && newpos.col > 2 && barrier.getBarriere())){
-            	barrier.sync();
-            	
-            }
-            /*
-            //are we about to enter the bridge?
-            if((newpos.row == 9 && current.col == 0 && newpos.col == 1 && no < 5) ||(newpos.col == 3 && newpos.row == 10)){
-                bridge.enter(no);
-            }
-            //have we left the bridge?
-            if(((newpos.row == 8 || newpos.row==9) && current.col == 4 && no < 5) ||(current.col== 0 && newpos.row == 9 && no > 4)){
-                bridge.leave(no);
-            }
-            */
-            //if none of the above, then check if the next field on the playground is free
+
 		try {
 			fields[newpos.row][newpos.col].P();
   
 		} catch (InterruptedException e) {
-			e.printStackTrace();
+
+                        throw e;
 		  }
-         return newpos;
 	}
             //Release the old field on the playground
             public void releaseOldPos(int row,int col) {
