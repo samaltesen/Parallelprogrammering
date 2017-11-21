@@ -173,8 +173,6 @@ class Car extends Thread {
                         workshop.removeCar(no, curpos);
                         curpos = cd.getStartPos(no);
                     }
-                    workshop.removeCar(no, curpos);
-;
  
                 }
                 
@@ -343,6 +341,7 @@ class Workshop{
         }
     }
     public synchronized void removeCar(int no, Pos current){
+            notifyAll();
         if(	current.col == 0 ||
         	((no < 5 || no > 2) && current.col < 4 && current.row == 1) || (no < 3 && current.col == 1 && current.row == 2) ||
         	(no >= 5 && ((current.row == 1 && current.col < 3) || (current.row == 10 && current.col == 10))) 
@@ -361,7 +360,7 @@ class Workshop{
 
            catch(InterruptedException e){}
         }
-        notify();
+        //notify();
         restoreFlags[no] = false;
         removalFlags[no] = false;  
 }
