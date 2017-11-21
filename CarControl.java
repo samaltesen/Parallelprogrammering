@@ -39,6 +39,8 @@ class Gate {
 class Car extends Thread {
     Field playGround = Field.getInstance();
     Workshop workshop = Workshop.getInstance();
+    Alley alley = Alley.getInstance();
+    int posCheck = 0;
     int basespeed = 100;             // Rather: degree of slowness
     int variation =  0;             // Percentage of base speed
     boolean clear = false;
@@ -130,7 +132,14 @@ class Car extends Thread {
                     }
 
                     newpos = nextPos(curpos);
-                     playGround.checkNewPos(no,cd,curpos,newpos);
+                    posCheck = playGround.checkNewPos(no,cd,curpos,newpos);
+                    if(posCheck == 1) {
+                    	alley.enter(no);
+                    }
+                    else if (posCheck == 2) {
+                    	alley.leave(no);
+                    }
+                    
                     //  Move to new position 
                     cd.clear(curpos);
                     try{
@@ -167,11 +176,11 @@ class Car extends Thread {
                     else{
                         clear = false;
                     }
-                   playGround.releaseOldPos(newpos.row, newpos.col);
-                   playGround.releaseOldPos(curpos.row, curpos.col);
+                    playGround.setPlayfield(no);
                     if(workshop.getRemovalFlag(no) && !workshop.getRestoreFlag(no)){
                         workshop.removeCar(no, curpos);
-                        curpos = cd.getStartPos(no);
+                        curpos = startpos;
+                        cd.mark(curpos,col,no);
                     }
  
                 }
@@ -244,8 +253,10 @@ public class CarControl implements CarControlI{
 
     }
 
-    public void restoreCar(int no) { 
+    public void restoreCar(int no) {
+    	test = new Pos(5,5);
         workshop.MarkCarForRestoration(no);
+        //workshop.removeCar(no, test);
         car[no].interrupt();
     }
 
@@ -265,57 +276,58 @@ class Alley{
        private static Alley instance = null;
        private int nrUp = 0;
        private int nrDown = 0;
-       private synchronized void startDown(){
+       private synchronized void startDown() throws InterruptedException{
            while(nrUp > 0){
-           try{
-               wait();
+	           try{
+	               wait();
+	           }
+	           catch(InterruptedException e){throw e;}
            }
-           catch(InterruptedException e){}
-           }
+           
            notify();
            nrDown++; 
        }
        public synchronized void endDown(){
-       nrDown--;
-       if (nrDown == 0){
-           notify();
+	       nrDown--;
+	       if (nrDown == 0){
+	           notify();
+	       }
        }
-       }
-       private synchronized void startUp(){
+       private synchronized void startUp() throws InterruptedException{
            while(nrDown > 0){
-           try{
-               wait();
-           }
-           catch(InterruptedException e){}
+	           try{
+	               wait();
+	           }
+	           catch(InterruptedException e){ throw e;}
            }
            notify();
            nrUp++; 
        }
        public synchronized void endUp(){
-       nrUp--;
-       if (nrUp == 0){
-           notify();
+	       nrUp--;
+	       if (nrUp == 0){
+	           notify();
+	       }
        }
-       }
-	public  void enter(int no) {
-
-             if(no < 5){
-                 startDown();
+		public synchronized void enter(int no) throws InterruptedException {
+		
+	         if(no < 5){
+	             startDown();
+	         }
+	            
+	         else{
+	             startUp();
+	         }
+	    }   	
+		public synchronized void leave(int no) throws InterruptedException{
+            if (no < 5){
+                endDown();
             }
-                
             else{
-                 startUp();
-            }
-        }   	
-	public void leave(int no) {
-                if (no < 5){
-                    endDown();
-                }
-                else{
-                    endUp();
-                }            
-                
-         } 
+                endUp();
+            }            
+		            
+		} 
         
         public int getNrDown(){
             return nrDown;
@@ -341,15 +353,19 @@ class Workshop{
         }
     }
     public synchronized void removeCar(int no, Pos current){
-            notifyAll();
+        notifyAll();
+        
         if(	current.col == 0 ||
         	((no < 5 || no > 2) && current.col < 4 && current.row == 1) || (no < 3 && current.col == 1 && current.row == 2) ||
         	(no >= 5 && ((current.row == 1 && current.col < 3) || (current.row == 10 && current.col == 10))) 
-			 ){
-            if(no<5){
+			 )
+        {
+            if(no<5)
+            {
                 alley.endDown();
-            }
-            else{
+            } 
+            else
+            {
                 alley.endUp();
             }
         }
@@ -358,7 +374,7 @@ class Workshop{
                 wait();
             }
 
-           catch(InterruptedException e){}
+           catch(InterruptedException e){System.out.print("-- AOgHILAKDBGAIBSDFA");}
         }
         //notify();
         restoreFlags[no] = false;
@@ -408,12 +424,13 @@ class Field{
     private Alley alley = Alley.getInstance();
     private Workshop workshop = Workshop.getInstance();
 	private static Field instance = null;
-	Semaphore[][] fields;
+	int[][] fields;
+	
 	protected Field(int row,int col) {
-		fields = new Semaphore[row][col];
+		fields = new int[row][col];
 		for(int i = 0 ; i < row ; i++) {
 			for(int j = 0 ; j < col ; j++) {
-				fields[i][j] = new Semaphore(1);
+				fields[i][j] = 10;
 			}			
 		}
 		
@@ -429,42 +446,51 @@ class Field{
 
         
        
-	public void checkNewPos(int no,CarDisplayI cd,Pos current,Pos newpos)throws InterruptedException {
+	public synchronized int checkNewPos(int no,CarDisplayI cd,Pos current,Pos newpos)throws InterruptedException {
 			
 
 
             //Check if we are about to enter alley
-            if(( newpos.col == 0 && newpos.row == 2 && current.col != 0)|| 
-            	//( newpos.col == 0 && newpos.row == 11 && current.col != 0) || 
-            	( newpos.col == 0 && newpos.row == 10) || 
-            	(no == 3 && newpos.col == 3 && current.col == 4 && newpos.row == 1) || 
-            	(no == 4 && newpos.col == 3 && current.col == 4 && newpos.row == 1) ){
-                alley.enter(no);
-                
-            }
-            //check if the cars has left the alley//moved col when we implemented bridge to avoid deadlock 
-            if(((newpos.col == 2) && (current.col == 1) && (no < 5)||(no > 4)&& newpos.col == 2 && newpos.row == 0)){
-                alley.leave(no);
-                
-            }
+	    if(( newpos.col == 0 && newpos.row == 2 && current.col != 0)|| 
+	    	//( newpos.col == 0 && newpos.row == 11 && current.col != 0) || 
+	    	( newpos.col == 0 && newpos.row == 10) || 
+	    	(no == 3 && newpos.col == 3 && current.col == 4 && newpos.row == 1) || 
+	    	(no == 4 && newpos.col == 3 && current.col == 4 && newpos.row == 1) ){
+	        return 1;
+	        
+	    }
+	    //check if the cars has left the alley//moved col when we implemented bridge to avoid deadlock 
+	    if(((newpos.col == 2) && (current.col == 1) && (no < 5)||(no > 4)&& newpos.col == 2 && newpos.row == 0)){
+	        return 2;
+	        
+	    }
 
-		try {
-			fields[newpos.row][newpos.col].P();
-  
-		} catch (InterruptedException e) {
+        while(fields[newpos.row][newpos.col] != 10)
+        {
+        	try 
+        	{
+        		wait();
 
-                        throw e;
-		  }
+        	} catch (InterruptedException e) {throw e;}
+       	}
+        
+       	fields[newpos.row][newpos.col] = no;
+       	notifyAll();
+       	return 0;
 	}
-            //Release the old field on the playground
-            public void releaseOldPos(int row,int col) {
-		fields[row][col].V();
-            }
-	
+       //Release the old field on the playground
+   public void releaseOldPos(int row,int col) {
+	   fields[row][col] =10;
+   }
+   public synchronized void setPlayfield(int no){
+       for(int i = 0 ; i < 11 ; i++) {
+    	   for(int j = 0 ; j < 12 ; j++) {
+                   if(fields[i][j]== no){
+                	   fields[i][j] = 10;
+                   }
+    	   }			
+       }
+       
+   }
+       
 }
-
-
-
-
-
-
