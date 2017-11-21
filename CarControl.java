@@ -98,7 +98,8 @@ class Car extends Thread {
     private int speed() {
         // Slow down if requested
         final int slowfactor = 3;  
-        return speed * (cd.isSlow(curpos)? slowfactor : 1);
+        //return speed * (cd.isSlow(curpos)? slowfactor : 1);
+        return speed*slowfactor;
     }
 
     Color chooseColor() { 
