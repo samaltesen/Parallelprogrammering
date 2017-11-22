@@ -6,6 +6,8 @@
 
 import java.awt.Color;
 
+enum InterruptState{NOT_MOVED, MOVED, MIDDLE_OF_MOVE;}
+
 class Gate
 {
 
@@ -66,6 +68,7 @@ class Car extends Thread
 	Barrier barrier;
 	Bridge bridge;
 	Pos oldPos;
+	InterruptState state;
 
 	int basespeed = 100; // Rather: degree of slowness
 	int variation = 50; // Percentage of base speed
@@ -89,6 +92,8 @@ class Car extends Thread
 		field = Field.getField();
 		barrier = Barrier.getBarrier();
 		bridge = Bridge.getInstance();
+		state = InterruptState.NOT_MOVED;
+		
 		this.no = no;
 		this.cd = cd;
 		mygate = g;
@@ -171,6 +176,7 @@ class Car extends Thread
 		{
 			bridge.enter(no);
 		} 
+		
 	}
 
 	void checkOldPos(Pos pos, int no) throws InterruptedException 
@@ -184,6 +190,7 @@ class Car extends Thread
 		{
 			bridge.leave(no);
 		}
+		
 	}
 	public void run()
 	{
@@ -196,39 +203,63 @@ class Car extends Thread
 
 			while (true)
 			{
-				sleep(speed());
+			
+					state = InterruptState.NOT_MOVED;
+					sleep(speed());
+	
+					if (atGate(curpos))
+					{
+						mygate.pass();
+						speed = chooseSpeed();
+					}
+	
+					newpos = nextPos(curpos);
+	
+					checkNewPos(newpos, no);
+					field.takePos(newpos);
+	
+					// Move to new position
+					cd.clear(curpos);
+					cd.mark(curpos, newpos, col, no);
 
-				if (atGate(curpos))
-				{
-					mygate.pass();
-					speed = chooseSpeed();
-				}
+					state = InterruptState.MIDDLE_OF_MOVE;
+					sleep(speed());
+					cd.clear(curpos, newpos);
+					cd.mark(newpos, col, no);
+	
+					oldPos = curpos;
+					curpos = newpos;
+	
+					checkOldPos(oldPos, no); 
+					field.releasePos(oldPos);
+				
+			} 
 
-				newpos = nextPos(curpos);
-
-				checkNewPos(newpos, no);
-				field.takePos(newpos);
-
-				// Move to new position
-				cd.clear(curpos);
-				cd.mark(curpos, newpos, col, no);
-				sleep(speed());
-				cd.clear(curpos, newpos);
-				cd.mark(newpos, col, no);
-
-				oldPos = curpos;
-				curpos = newpos;
-
-				checkOldPos(oldPos, no); 
-				field.releasePos(oldPos);
-
-			}
-
-		} 
-		catch(InterruptedException e) {
-			System.out.println("Test....");
 		}
-		
+		catch(InterruptedException e) 
+		{ 
+			if(state == InterruptState.NOT_MOVED) {
+				cd.clear(curpos);
+				field.releasePos(curpos);
+			} else if(state == InterruptState.MIDDLE_OF_MOVE)
+			{
+				cd.clear(curpos);
+				cd.clear(newpos);
+				field.releasePos(curpos);
+				field.releasePos(newpos);
+			}
+			
+			if(alley.isCarInAlley(no)) {
+				try
+				{
+					alley.leave(no);
+				} catch (InterruptedException e1)
+				{
+					// TODO Auto-generated catch block
+					e1.printStackTrace();
+				}
+			}
+		}
 		catch (Exception e)
 		{
 			cd.println("Exception in Car no. " + no);
@@ -312,12 +343,9 @@ public class CarControl implements CarControlI
 
 	public void removeCar(int no)
 	{
-		if(car[no].isAlive()) 
-		{
-			if(alley.isCarInAlley(no)) 
-			{
-				
-			}	
+		boolean test = car[no].isAlive();
+		if(test) 
+		{	
 			car[no].interrupt();
 		}
 		
@@ -326,10 +354,11 @@ public class CarControl implements CarControlI
 
 	public void restoreCar(int no)
 	{
-		if(alley.isCarInAlley(no)) 
+		if(!car[no].isAlive()) 
 		{
-		
-			System.out.println("Car status " + alley.isCarInAlley(no));
+			car[no] = new Car(no, cd, gate[no]);
+			car[no].start();
+			
 		}
 		cd.println("Restore Car not implemented in this version");
 	}
@@ -354,7 +383,7 @@ class Alley
 	private static Alley alley = null;
 	private int carsUp = 0;
 	private int carsDown = 0;
-	private int[] carsInAlley = new int[8];
+	private int[] carsInAlley = new int[9];
 
 	public Alley()
 	{
@@ -370,19 +399,16 @@ class Alley
 		return alley;
 	}
 
-	public synchronized void enter(int no)
+	public synchronized void enter(int no) throws InterruptedException
 	{
 
 		if (no <= 4)
 		{
 			while (carsUp > 0)
 			{
-				try
-				{
+				
 					wait();
-				} catch (InterruptedException e)
-				{
-				}
+				
 			}
 			carsDown++;
 			carsInAlley[no] = no;
@@ -393,12 +419,9 @@ class Alley
 			while (carsDown > 0)
 			{
 
-				try
-				{
+				
 					wait();
-				} catch (InterruptedException e)
-				{
-				}
+				
 
 			}
 			carsInAlley[no] = no;
@@ -480,6 +503,7 @@ class Alley
 		return carsDown;
 	}
 
+	
 }
 
 class Field
@@ -577,23 +601,21 @@ class Barrier
 
 	public synchronized void sync()
 	{
-		if (barrierState)
+		carsWaiting++;
+		if (carsWaiting == 9)
 		{
-			carsWaiting++;
-			if (carsWaiting == 9)
+			carsWaiting = 0;
+			notifyAll();
+		} else
+		{
+			try
 			{
-				carsWaiting = 0;
-				notifyAll();
-			} else
+				wait();
+			} catch (InterruptedException e)
 			{
-				try
-				{
-					wait();
-				} catch (InterruptedException e)
-				{
-				}
 			}
 		}
+
 	}
 
 	public boolean atBarrier(Pos pos, int no)
