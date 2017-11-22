@@ -128,6 +128,7 @@ class Car extends Thread {
                     speed = chooseSpeed();
                 }
                 newpos = nextPos(curpos);
+                //check the new position and grap a semphore if it is free
                 playGround.checkNewPos(newpos.row,newpos.col,curpos.col,no);
                 //  Move to new position 
                 cd.clear(curpos);
@@ -182,7 +183,9 @@ public class CarControl implements CarControlI{
     }
 
     public void barrierOff() {
-    	barriere.off();
+    	if(barriere.getBarriere()){
+        barriere.off();
+        }
         //cd.println("Barrier Off not implemented in this version");
     }
 
@@ -223,7 +226,7 @@ public class CarControl implements CarControlI{
 }
 
 class Alley{
-    //Passing the blaton
+    //Passing the baiton
        private Semaphore enter = new Semaphore(1);
        private Semaphore up = new Semaphore(0);
        private Semaphore down = new Semaphore(0);
@@ -234,62 +237,49 @@ class Alley{
        private int turnsDown;
        private int turnsUp;
 	public void enter(int no) {
-	
             try {
-                if ((no==1) || (no==2) || (no == 3) || (no == 4) ){
+                if (no < 5 ){
                     enter.P();
-                    if(turnsDown > 3 && delayedUp > 0){
+                    if(nrUp > 0){
+                        delayedDown++;
                         enter.V();
+                        down.P();
+                    }
+                    nrDown++;
+                    if(delayedDown > 0){
+                        delayedDown--;
+                        down.V();
                     }
                     else{
-                        if(nrUp > 0){
-                            delayedDown++;
-                            enter.V();
-                            down.P();
-                        }
-                        turnsDown++;
-                        nrDown++;
-                        turnsUp = 0;
-                        if(delayedDown > 0){
-                            delayedDown--;
-                            down.V();
-                        }
-                        else{
-                            enter.V();
-                        }
+                        enter.V();
                     }
+
                 }
                 else{
                     enter.P();
-                    if(turnsUp > 3 && delayedDown > 0){
+                    if(nrDown > 0){
+                        delayedUp++;
                         enter.V();
+                        up.P();
+                    }
+                    nrUp++;
+                    if(delayedUp > 0){
+                        delayedUp--;
+                        up.V();
                     }
                     else{
-                        if(nrDown > 0){
-                            delayedUp++;
-                            enter.V();
-                            up.P();
-                        }
-                        turnsUp++;
-                        nrUp++;
-                        turnsDown = 0;
-                        if(delayedUp > 0){
-                            delayedUp--;
-                            up.V();
-                        }
-                        else{
-                            enter.V();
-                        }
+                        enter.V();
                     }
+                    
                 }
-             }
-             catch(InterruptedException e){}
+            }
+            catch(InterruptedException e){}
                 
         }
             	
 	public void leave(int no) {
             try{
-                if ((no==1) || (no==2) || (no == 3) || (no == 4)){
+                if (no < 5){
                     enter.P();
                     nrDown--;
                     if(nrDown == 0 && delayedUp > 0){
@@ -330,7 +320,7 @@ class Barrier {
 	   protected Barrier(){}
            //Reusable barriers the little book of semaphores
 	   public void sync(int no) { 
-		   if(barriere) {
+		   
                    try{    
                        mutex.P();
 			   carsWaiting++; 
@@ -353,7 +343,7 @@ class Barrier {
                     sp2.V();
                   }
                    catch(InterruptedException e){}
-                   }      
+     
 	   }  // Wait for others to arrive (if barrier active)
 
            public boolean getBarriere(){
@@ -376,7 +366,7 @@ class Barrier {
                 //Why this?
                  carsWaiting++;
                  barriere = false;
-		 if(carsWaiting > 0 && firstTime){
+		 if(firstTime){
                     sp2.P();
                     sp1.V();
                     firstTime = false;
@@ -397,21 +387,21 @@ class Barrier {
         }
         catch(InterruptedException e){}
     }   
-    
-    
-	   public static Barrier getInstance() {
-		   if (instance == null) {
-			   instance =  new Barrier();
-		   }
-		   return instance;
-	   }
+    //Sigleton Design
+    public static Barrier getInstance() {
+        if (instance == null) {
+            instance =  new Barrier();
 	}
+	return instance;
+    }
+}
 
 class Field{
 	private  Barrier barrier = Barrier.getInstance();
-    private Alley alley = new Alley();
+        private Alley alley = new Alley();
 	private static Field instance = null;
 	Semaphore[][] fields;
+        //Fill the playground with binary semaphores
 	protected Field(int row,int col) {
 		fields = new Semaphore[row][col];
 		for(int i = 0 ; i < row ; i++) {
@@ -431,7 +421,7 @@ class Field{
 	
 	public void checkNewPos(int rowNew,int colNew, int colOld,int no) {
             //Check if we are about to enter alley
-            if(/*(colNew == 0 && rowNew == 1 && colOld != 0) ||*/ ( colNew == 0 && rowNew == 2 && colOld != 0) || ( colNew == 0 && rowNew == 11 && colOld != 0) || ( colNew == 0 && rowNew == 10) || (no == 3 && colNew == 3 && colOld == 4 && rowNew == 1) || (no == 4 && colNew == 3 && colOld == 4 && rowNew == 1) ){
+            if(( colNew == 0 && rowNew == 2 && colOld != 0) || ( colNew == 0 && rowNew == 11 && colOld != 0) || ( colNew == 0 && rowNew == 10) || (no == 3 && colNew == 3 && colOld == 4 && rowNew == 1) || (no == 4 && colNew == 3 && colOld == 4 && rowNew == 1) ){
                 alley.enter(no);
                 
             }
@@ -445,16 +435,16 @@ class Field{
             	
             }
             //if none of the above, then check if the next field on the playground is free
-		try {
-			fields[rowNew][colNew].P();
-		} catch (InterruptedException e) {
-			e.printStackTrace();
-		  }
+            try {
+                fields[rowNew][colNew].P();
+            } catch (InterruptedException e) {
+		e.printStackTrace();
+              }
 	}
             //Release the old field on the playground
-            public void releaseOldPos(int row,int col) {
-		fields[row][col].V();
-            }
+        public void releaseOldPos(int row,int col) {
+            fields[row][col].V();
+        }
 	
 }
 
