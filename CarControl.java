@@ -38,6 +38,9 @@ class Gate {
 class Car extends Thread {
 	
 	Alley alley;
+	Field field;
+	Pos oldPos;
+	
 
     int basespeed = 100;             // Rather: degree of slowness
     int variation =  50;             // Percentage of base speed
@@ -58,7 +61,8 @@ class Car extends Thread {
     public Car(int no, CarDisplayI cd, Gate g) {
     	
     	alley = Alley.getAlley();
-        this.no = no;
+        field = Field.getField();
+    	this.no = no;
         this.cd = cd;
         mygate = g;
         startpos = cd.getStartPos(no);
@@ -143,7 +147,10 @@ class Car extends Thread {
                 }
                 	
                 newpos = nextPos(curpos);
+                
                 checkPos(newpos, no);
+                field.takePos(newpos);
+                
                 //  Move to new position 
                 cd.clear(curpos);
                 cd.mark(curpos,newpos,col,no);
@@ -151,7 +158,12 @@ class Car extends Thread {
                 cd.clear(curpos,newpos);
                 cd.mark(newpos,col,no);
 
+                oldPos = curpos;
                 curpos = newpos;
+                
+                
+                field.releasePos(oldPos);
+                
             }
 
         } catch (Exception e) {
@@ -337,6 +349,40 @@ class Alley {
 
 		return false;
 	}
+	
+}
+
+class Field {
+	
+	private static Field f = null; 
+	Semaphore[][] field;
+	
+	public Field() {
+		
+		field = new Semaphore[11][12];
+		for(int i=0; i < 11; i++) {
+			for(int j = 0; j < 12; j++) {
+				field[i][j] = new Semaphore(1);
+			}
+		}
+	}
+	
+	public static Field getField() {
+		if(f == null) {
+			f = new Field();
+		}
+		return f;
+	}
+	
+	public void takePos(Pos pos) throws InterruptedException {
+		field[pos.row][pos.col].P();
+	}
+	
+	public void releasePos(Pos pos) {
+		field[pos.row][pos.col].V();
+	}
+	
+	
 	
 }
 
