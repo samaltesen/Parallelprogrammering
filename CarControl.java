@@ -224,7 +224,12 @@ class Car extends Thread
 
 			}
 
-		} catch (Exception e)
+		} 
+		catch(InterruptedException e) {
+			System.out.println("Test....");
+		}
+		
+		catch (Exception e)
 		{
 			cd.println("Exception in Car no. " + no);
 			System.err.println("Exception in Car no. " + no + ":" + e);
@@ -242,6 +247,7 @@ public class CarControl implements CarControlI
 	Gate[] gate; // Gates
 	Barrier barrier;
 	Bridge bridge;
+	Alley alley;
 
 	public CarControl(CarDisplayI cd)
 	{
@@ -250,6 +256,7 @@ public class CarControl implements CarControlI
 		gate = new Gate[9];
 		barrier = Barrier.getBarrier();
 		bridge = Bridge.getInstance();
+		alley = Alley.getAlley();
 		for (int no = 0; no < 9; no++)
 		{
 			gate[no] = new Gate();
@@ -307,17 +314,22 @@ public class CarControl implements CarControlI
 	{
 		if(car[no].isAlive()) 
 		{
-		
+			if(alley.isCarInAlley(no)) 
+			{
+				
+			}	
 			car[no].interrupt();
 		}
+		
 		//cd.println("Remove Car not implemented in this version");
 	}
 
 	public void restoreCar(int no)
 	{
-		if(!car[no].isAlive()) 
+		if(alley.isCarInAlley(no)) 
 		{
-			car[no] = new Car(no, cd, gate[no]);
+		
+			System.out.println("Car status " + alley.isCarInAlley(no));
 		}
 		cd.println("Restore Car not implemented in this version");
 	}
@@ -342,6 +354,7 @@ class Alley
 	private static Alley alley = null;
 	private int carsUp = 0;
 	private int carsDown = 0;
+	private int[] carsInAlley = new int[8];
 
 	public Alley()
 	{
@@ -372,6 +385,7 @@ class Alley
 				}
 			}
 			carsDown++;
+			carsInAlley[no] = no;
 			notify();
 
 		} else
@@ -387,7 +401,7 @@ class Alley
 				}
 
 			}
-
+			carsInAlley[no] = no;
 			carsUp++;
 			notify();
 		}
@@ -399,6 +413,7 @@ class Alley
 		if (no <= 4)
 		{
 			carsDown--;
+			carsInAlley[no] = 0;
 			if (carsDown == 0)
 			{
 				notify();
@@ -406,6 +421,7 @@ class Alley
 		} else
 		{
 			carsUp--;
+			carsInAlley[no] = 0;
 			if (carsUp == 0)
 			{
 				notify();
@@ -442,6 +458,20 @@ class Alley
 			return true;
 		}
 
+		return false;
+	}
+	
+	public boolean isCarInAlley(int no) 
+	{
+		
+		for(int i = 0; i < 9; i++) 
+		{
+			if(carsInAlley[i] == no) 
+			{
+				return true;
+			}
+		}
+		
 		return false;
 	}
 
