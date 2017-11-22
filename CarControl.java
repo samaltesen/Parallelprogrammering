@@ -234,8 +234,7 @@ class Alley{
        private int delayedUp = 0;
        private int nrUp = 0;
        private int nrDown = 0;
-       private int turnsDown;
-       private int turnsUp;
+       
 	public void enter(int no) {
             try {
                 if (no < 5 ){
