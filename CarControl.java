@@ -169,7 +169,7 @@ class Car extends Thread
 		
 		if (barrier.getState() && barrier.atBarrier(pos, no))
 		{
-			barrier.sync();
+			barrier.sync(no);
 		} 
 		
 		if (bridge.enteringBridge(pos, no))
@@ -259,6 +259,11 @@ class Car extends Thread
 					e1.printStackTrace();
 				}
 			}
+			
+			if(bridge.isOnBridge(no)) 
+			{
+				bridge.leave(no);
+			}
 		}
 		catch (Exception e)
 		{
@@ -346,6 +351,7 @@ public class CarControl implements CarControlI
 		boolean test = car[no].isAlive();
 		if(test) 
 		{	
+			barrier.decrementOnField();
 			car[no].interrupt();
 		}
 		
@@ -357,6 +363,7 @@ public class CarControl implements CarControlI
 		if(!car[no].isAlive()) 
 		{
 			car[no] = new Car(no, cd, gate[no]);
+			barrier.incrementOnField();
 			car[no].start();
 			
 		}
@@ -383,7 +390,7 @@ class Alley
 	private static Alley alley = null;
 	private int carsUp = 0;
 	private int carsDown = 0;
-	private int[] carsInAlley = new int[9];
+	private boolean[] carsInAlley = new boolean[9];
 
 	public Alley()
 	{
@@ -411,7 +418,7 @@ class Alley
 				
 			}
 			carsDown++;
-			carsInAlley[no] = no;
+			carsInAlley[no] = true;
 			notify();
 
 		} else
@@ -424,7 +431,7 @@ class Alley
 				
 
 			}
-			carsInAlley[no] = no;
+			carsInAlley[no] = true;
 			carsUp++;
 			notify();
 		}
@@ -436,7 +443,7 @@ class Alley
 		if (no <= 4)
 		{
 			carsDown--;
-			carsInAlley[no] = 0;
+			carsInAlley[no] = false;
 			if (carsDown == 0)
 			{
 				notify();
@@ -444,7 +451,7 @@ class Alley
 		} else
 		{
 			carsUp--;
-			carsInAlley[no] = 0;
+			carsInAlley[no] = false;
 			if (carsUp == 0)
 			{
 				notify();
@@ -487,15 +494,7 @@ class Alley
 	public boolean isCarInAlley(int no) 
 	{
 		
-		for(int i = 0; i < 9; i++) 
-		{
-			if(carsInAlley[i] == no) 
-			{
-				return true;
-			}
-		}
-		
-		return false;
+		return carsInAlley[no];
 	}
 
 	public int getCarsDown()
@@ -549,14 +548,20 @@ class Field
 class Barrier
 {
 	private static Barrier b = null;
+	private int carsOnField;
 	private int carsWaiting;
 	private boolean barrierState;
+	private boolean[] atBarrier = new boolean[9];
 
 	public Barrier()
 	{
 		carsWaiting = 0;
 		barrierState = false;
-	}
+		carsOnField = 9;
+		for(int i = 0; i < 9; i++) {
+			atBarrier[i] = false;
+		}
+	}	
 
 	public static Barrier getBarrier()
 	{
@@ -582,7 +587,7 @@ class Barrier
 		}
 	}
 
-	public synchronized void shutdown()
+	public synchronized void shutdown() 
 	{
 
 		while (carsWaiting != 0)
@@ -599,21 +604,23 @@ class Barrier
 
 	}
 
-	public synchronized void sync()
+	public synchronized void sync(int no) throws InterruptedException
 	{
 		carsWaiting++;
-		if (carsWaiting == 9)
+		if (carsWaiting == carsOnField)
 		{
+			for(int i = 0; i < 9; i++) {
+				atBarrier[i] = false;
+			}
 			carsWaiting = 0;
 			notifyAll();
 		} else
 		{
-			try
-			{
+			atBarrier[no] = true;
+			
 				wait();
-			} catch (InterruptedException e)
-			{
-			}
+			
+			
 		}
 
 	}
@@ -631,6 +638,21 @@ class Barrier
 		return false;
 	}
 
+	public boolean isAtBarrier(int no) 
+	{
+		return atBarrier[no];
+	}
+	
+	public synchronized void decrementOnField() 
+	{
+		carsOnField--;
+	}
+	
+	public synchronized void incrementOnField() 
+	{
+		carsOnField++;
+	}
+	
 	public boolean getState()
 	{
 		return barrierState;
@@ -644,7 +666,15 @@ class Bridge
 	private int limit = 6;
 	private int counter = 0;
 	private static Bridge instance = null;
-
+	private boolean carsOnBridge[] = new boolean[9];
+	
+	public Bridge() 
+	{
+		for(int i = 0; i < 0; i++) {
+			carsOnBridge[i] = false;
+		}
+	}
+	
 	public synchronized void enter(int no)
 	{
 
@@ -669,13 +699,14 @@ class Bridge
 
 			}
 		}
-
+		carsOnBridge[no] = true;
 		counter++;
 
 	}
 
 	public synchronized void leave(int no)
 	{
+		carsOnBridge[no] = false;
 		counter--;
 		notify();
 	}
@@ -727,6 +758,11 @@ class Bridge
 		}
 		
 		return false;
+	}
+	
+	public boolean isOnBridge(int no) {
+		
+		return carsOnBridge[no];
 	}
 }
 
